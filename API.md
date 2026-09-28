@@ -304,3 +304,58 @@ curl http://localhost:8000/pinzan/regions | head -c 200
 ```
 
 详见 [README.md](./README.md) 的「Linux 单文件部署」「常用启动参数」章节。
+
+---
+
+## 8. WCS 兼容接口（`/api/*` 与 `/wx/*`）
+
+为便于原本对接 WCS（微信协议服务器）的客户端平滑迁移，额外提供一套与 WCS 路径风格一致的接口。**账号、扫码、代理、鉴权类全部真实可用**；WCS 的其余 `/wx/*`（oauth/cloud/gateway 等）yyb 核心协议层尚未实现，调用时返回 `501` 并列出已支持接口（不伪造）。
+
+### 8.1 账号 `/api/accounts/*`
+
+| 方法 & 路径 | 说明 | 关键参数 |
+|-------------|------|----------|
+| `GET /api/accounts` | 列出全部账号 | — |
+| `POST /api/accounts/add` | 用 `login_buffer` 导入账号 | `login_buffer`(必填)、`openid`(必填)、`nickname`、`alias` |
+| `POST /api/accounts/delete` | 删除账号 | `ref` |
+| `POST /api/accounts/disable` | 启用/禁用账号 | `ref`、`disabled`(bool) |
+| `POST /api/accounts/remark` | 设置备注/别名 | `ref`、`remark` |
+| `POST /api/accounts/rescan` | 重新校验登录态（刷新） | `ref` |
+| `GET /api/accounts/status` | 查询单个账号状态 | `ref`(query) |
+
+```bash
+# 导入一个已有 login_buffer 的账号
+curl -X POST http://localhost:8000/api/accounts/add \
+  -H 'Content-Type: application/json' \
+  -d '{"login_buffer":"...","openid":"oXXX...","nickname":"测试号"}'
+```
+
+### 8.2 扫码 `/api/qr/*`
+
+| 方法 & 路径 | 说明 | 关键参数 |
+|-------------|------|----------|
+| `POST /api/qr/start` | 创建扫码会话（镜像 `/qr`） | `use_proxy`、`area`、`?as_base64=true` |
+| `GET /api/qr/status` | 轮询扫码状态（镜像 `/qr/{id}/poll`） | `session_id`(query) |
+
+### 8.3 鉴权与代理 `/api/auth/*`、`/api/proxies/*`
+
+| 方法 & 路径 | 说明 | 关键参数 |
+|-------------|------|----------|
+| `POST /api/auth/validate` | 校验调用方令牌（设了 `YYB_API_TOKEN` 才校验） | `token` |
+| `GET /api/proxies` | 列出全部代理 | — |
+| `POST /api/proxies/add` | 新增代理 | `scheme`、`host`、`port`、`username?`、`password?`、`note?`、`enabled?` |
+| `POST /api/proxies/delete` | 删除代理 | `id` |
+| `POST /api/proxies/test` | 测试代理连通性（真 TCP dial） | `id` 或 `host`+`port` |
+
+```bash
+# 新增代理并测试
+curl -X POST http://localhost:8000/api/proxies/add \
+  -H 'Content-Type: application/json' \
+  -d '{"scheme":"socks5","host":"127.0.0.1","port":1080,"note":"my-proxy"}'
+curl -X POST http://localhost:8000/api/proxies/test \
+  -H 'Content-Type: application/json' -d '{"id":1}'
+```
+
+`POST /wx/code`、`/wx/getphonenumber`、`/wx/operateWxData` 与 `/wxapp/*` 等价；`/wx/getuserinfo`、`/wx/getsession`、`/wx/refresh` 返回已保存账号的资料/会话态。这些 wx 调用均可带 `proxy`（地址）或 `proxy_id`（代理库 id）参数，真正作用于微信协议链路出口。
+
+详见 [README.md](./README.md) 的「WCS 兼容接口」章节与 `/openapi.json`。
