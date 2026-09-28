@@ -37,6 +37,8 @@ type Config struct {
 	PinzanSecret      string
 	PinzanMinute      int
 	PinzanRegionsFile string
+	APIToken          string // 可选：设置后 /api/auth/validate 校验此令牌
+	ProxyTestTimeout  time.Duration
 }
 
 type App struct {
@@ -164,6 +166,48 @@ func (a *App) Handler() http.Handler {
 	router.Any("/wxapp/getCode", gin.WrapF(a.handleGetCode))
 	router.Any("/wxapp/getPhoneNumber", gin.WrapF(a.handleGetPhoneNumber))
 	router.Any("/wxapp/operateWxData", gin.WrapF(a.handleOperateWXData))
+
+	// ---- WCS 兼容接口层（仿照 WCS 的 /api/* 与 /wx/* 路径）----
+	router.Any("/api/health", func(c *gin.Context) {
+		writeJSON(c.Writer, http.StatusOK, gin.H{"ok": true})
+	})
+	router.Any("/api/accounts", gin.WrapF(a.handleAPIAccounts))
+	router.Any("/api/accounts/add", gin.WrapF(a.handleAccountAdd))
+	router.Any("/api/accounts/delete", gin.WrapF(a.handleAccountDeleteAPI))
+	router.Any("/api/accounts/disable", gin.WrapF(a.handleAccountDisable))
+	router.Any("/api/accounts/remark", gin.WrapF(a.handleAccountRemark))
+	router.Any("/api/accounts/rescan", gin.WrapF(a.handleAccountRescanAPI))
+	router.Any("/api/accounts/status", gin.WrapF(a.handleAccountStatus))
+	router.Any("/api/qr/start", gin.WrapF(a.handleAPIQRStart))
+	router.Any("/api/qr/status", gin.WrapF(a.handleAPIQRStatus))
+	router.Any("/api/auth/validate", gin.WrapF(a.handleAuthValidate))
+	router.Any("/api/path", func(c *gin.Context) {
+		writeJSON(c.Writer, http.StatusOK, gin.H{"path": "/"})
+	})
+	router.Any("/api/proxies", gin.WrapF(a.handleProxiesList))
+	router.Any("/api/proxies/add", gin.WrapF(a.handleProxyAdd))
+	router.Any("/api/proxies/delete", gin.WrapF(a.handleProxyDelete))
+	router.Any("/api/proxies/test", gin.WrapF(a.handleProxyTest))
+	// WCS /wx/* 业务接口（与 /wxapp/* 对齐，并补齐 store 支持的读接口）
+	router.Any("/wx/code", gin.WrapF(a.handleWXCode))
+	router.Any("/wx/getphonenumber", gin.WrapF(a.handleWXGetPhoneNumber))
+	router.Any("/wx/operateWxData", gin.WrapF(a.handleWXOperate))
+	router.Any("/wx/getuserinfo", gin.WrapF(a.handleWXGetUserInfo))
+	router.Any("/wx/getsession", gin.WrapF(a.handleWXGetSession))
+	router.Any("/wx/refresh", gin.WrapF(a.handleWXRefresh))
+	// WCS 的其它 /wx/* 操作：yyb 核心协议层未实现，逐条显式注册并返回清晰说明
+	// （Gin 不允许 /wx/*path 通配与上面的静态路由共存）。
+	router.Any("/wx/autoauth", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/cloud", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/downloadurl", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/encryptkey", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/gateway", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/gateway/call", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/oauth", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/qrcodeauth", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/translatelink", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/appmsgext", gin.WrapF(a.handleWXUnsupported))
+	router.Any("/wx/appmsglike", gin.WrapF(a.handleWXUnsupported))
 	router.NoRoute(func(c *gin.Context) {
 		writeError(c.Writer, http.StatusNotFound, "not found")
 	})
@@ -237,31 +281,40 @@ func (a *App) handleQRRoot(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
-	body.Area = strings.TrimSpace(body.Area)
+	wantBase64 := r.URL.Query().Get("as_base64") == "true"
+	out, status, err := a.createQR(r.Context(), body.UseProxy, body.Area, wantBase64)
+	if err != nil {
+		writeError(w, status, err.Error())
+		return
+	}
+	writeJSON(w, status, out)
+}
+
+// createQR 生成一个新的扫码登录会话，供 /qr 与 WCS 兼容的 /api/qr/start 共用。
+// 返回 (响应体, HTTP状态码, error)。error 非 nil 时状态码为对应错误码。
+func (a *App) createQR(ctx context.Context, useProxy bool, area string, wantBase64 bool) (map[string]any, int, error) {
+	area = strings.TrimSpace(area)
 	a.pruneQR()
-	ctx, cancel := context.WithTimeout(r.Context(), 5*a.cfg.RequestTimeout+5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*a.cfg.RequestTimeout+5*time.Second)
 	defer cancel()
 	var qrHTTPClient *http.Client
 	var proxyVerification pinzan.Verification
-	area := ""
-	if body.UseProxy {
-		area = body.Area
-		if area == "" {
-			area = "all"
+	areaCode := ""
+	if useProxy {
+		areaCode = area
+		if areaCode == "" {
+			areaCode = "all"
 		}
-		if !pinzan.ValidRegionCode(area) {
-			writeError(w, http.StatusBadRequest, "area must be all or a six-digit Pinzan region code")
-			return
+		if !pinzan.ValidRegionCode(areaCode) {
+			return nil, http.StatusBadRequest, errors.New("area must be all or a six-digit Pinzan region code")
 		}
-		if a.pinzanRegions == nil || !a.pinzanRegions.HasCode(area) {
-			writeError(w, http.StatusBadRequest, "area is not present in the Pinzan region table")
-			return
+		if a.pinzanRegions == nil || !a.pinzanRegions.HasCode(areaCode) {
+			return nil, http.StatusBadRequest, errors.New("area is not present in the Pinzan region table")
 		}
 		var err error
-		qrHTTPClient, proxyVerification, err = a.pinzan.NewHTTPClient(ctx, area, a.cfg.RequestTimeout)
+		qrHTTPClient, proxyVerification, err = a.pinzan.NewHTTPClient(ctx, areaCode, a.cfg.RequestTimeout)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, err.Error())
-			return
+			return nil, http.StatusBadGateway, err
 		}
 	}
 	img, err := a.qr.GetQRCodeImage(ctx, qrHTTPClient)
@@ -269,18 +322,16 @@ func (a *App) handleQRRoot(w http.ResponseWriter, r *http.Request) {
 		if qrHTTPClient != nil {
 			qrHTTPClient.CloseIdleConnections()
 		}
-		writeError(w, http.StatusBadGateway, err.Error())
-		return
+		return nil, http.StatusBadGateway, err
 	}
 	expiresIn := 110
 	var proxyLatencyMS any
-	if body.UseProxy {
+	if useProxy {
 		img.Session.ExpiresAt = proxyVerification.ExpiresAt
 		expiresIn = secondsUntil(img.Session.ExpiresAt)
 		if expiresIn == 0 {
 			img.Session.Close()
-			writeError(w, http.StatusBadGateway, "品赞代理在二维码生成前已过期，请重新获取")
-			return
+			return nil, http.StatusBadGateway, errors.New("品赞代理在二维码生成前已过期，请重新获取")
 		}
 		proxyLatencyMS = proxyVerification.LatencyMS
 	}
@@ -298,17 +349,17 @@ func (a *App) handleQRRoot(w http.ResponseWriter, r *http.Request) {
 		"session_id":       img.Session.ID,
 		"status":           img.Session.Status,
 		"image_url":        "/qr/" + img.Session.ID + "/image",
-		"proxy_enabled":    body.UseProxy,
-		"proxy_area":       stringPtrMaybe(area),
+		"proxy_enabled":    useProxy,
+		"proxy_area":       stringPtrMaybe(areaCode),
 		"proxy_latency_ms": proxyLatencyMS,
 		"expires_in":       expiresIn,
 	}
-	if r.URL.Query().Get("as_base64") == "true" {
+	if wantBase64 {
 		out["image_base64"] = qr.DataURIJPEG(img.ImageBytes)
 	} else {
 		out["image_base64"] = nil
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, http.StatusOK, nil
 }
 
 type qrCreateRequest struct {
@@ -541,9 +592,10 @@ type wxappRequest struct {
 	Ref     string         `json:"ref"`
 	AppID   string         `json:"app_id"`
 	Payload map[string]any `json:"payload"`
+	Proxy   string         `json:"proxy"` // 可选：本次调用使用的代理地址，或代理库 id（配合 ?proxy_id 亦可）
 }
 
-type wxappCall func(ctx context.Context, acc *store.WechatAccount, appID string, payload map[string]any) (map[string]any, error)
+type wxappCall func(ctx context.Context, acc *store.WechatAccount, appID string, payload map[string]any, tcpProxy string) (map[string]any, error)
 
 func (a *App) callWXApp(w http.ResponseWriter, r *http.Request, requirePayload bool, call wxappCall) {
 	var body wxappRequest
@@ -567,7 +619,12 @@ func (a *App) callWXApp(w http.ResponseWriter, r *http.Request, requirePayload b
 	if !ok {
 		return
 	}
-	result, err := a.invokeWXApp(r.Context(), acc, body.AppID, body.Payload, call)
+	tcpProxy, perr := a.resolveTCPProxy(r, body.Proxy)
+	if perr != nil {
+		writeError(w, http.StatusBadRequest, perr.Error())
+		return
+	}
+	result, err := a.invokeWXApp(r.Context(), acc, body.AppID, body.Payload, tcpProxy, call)
 	if err != nil {
 		var expired accountExpiredError
 		switch {
@@ -705,14 +762,13 @@ type accountExpiredError struct{ openid string }
 
 func (e accountExpiredError) Error() string { return "account expired: " + e.openid }
 
-func (a *App) invokeWXApp(ctx context.Context, acc *store.WechatAccount, appID string, payload map[string]any, call wxappCall) (map[string]any, error) {
-	proxy := a.cfg.TCPProxy
-	if _, err := a.db.GetSession(ctx, acc.ID, proxy); err == nil {
-		result, err := call(ctx, acc, appID, payload)
+func (a *App) invokeWXApp(ctx context.Context, acc *store.WechatAccount, appID string, payload map[string]any, tcpProxy string, call wxappCall) (map[string]any, error) {
+	if _, err := a.db.GetSession(ctx, acc.ID, tcpProxy); err == nil {
+		result, err := call(ctx, acc, appID, payload, tcpProxy)
 		if err == nil {
 			return result, nil
 		}
-		_ = a.db.InvalidateSession(ctx, acc.ID, proxy)
+		_ = a.db.InvalidateSession(ctx, acc.ID, tcpProxy)
 	}
 	status := a.refreshLiveness(ctx, acc)
 	if status != "alive" {
@@ -722,19 +778,19 @@ func (a *App) invokeWXApp(ctx context.Context, acc *store.WechatAccount, appID s
 	if err == nil && fresh != nil {
 		acc = fresh
 	}
-	return call(ctx, acc, appID, payload)
+	return call(ctx, acc, appID, payload, tcpProxy)
 }
 
-func (a *App) invokeGetCode(ctx context.Context, acc *store.WechatAccount, appID string, _ map[string]any) (map[string]any, error) {
-	return a.pool.GetCode(ctx, acc.LoginBuffer, appID, acc.ID, a.cfg.TCPProxy)
+func (a *App) invokeGetCode(ctx context.Context, acc *store.WechatAccount, appID string, _ map[string]any, tcpProxy string) (map[string]any, error) {
+	return a.pool.GetCode(ctx, acc.LoginBuffer, appID, acc.ID, tcpProxy)
 }
 
-func (a *App) invokeGetPhoneNumber(ctx context.Context, acc *store.WechatAccount, appID string, _ map[string]any) (map[string]any, error) {
-	return a.pool.GetPhoneNumber(ctx, acc.LoginBuffer, appID, acc.ID, a.cfg.TCPProxy)
+func (a *App) invokeGetPhoneNumber(ctx context.Context, acc *store.WechatAccount, appID string, _ map[string]any, tcpProxy string) (map[string]any, error) {
+	return a.pool.GetPhoneNumber(ctx, acc.LoginBuffer, appID, acc.ID, tcpProxy)
 }
 
-func (a *App) invokeOperateWXData(ctx context.Context, acc *store.WechatAccount, appID string, payload map[string]any) (map[string]any, error) {
-	return a.pool.OperateWXData(ctx, acc.LoginBuffer, appID, payload, acc.ID, a.cfg.TCPProxy)
+func (a *App) invokeOperateWXData(ctx context.Context, acc *store.WechatAccount, appID string, payload map[string]any, tcpProxy string) (map[string]any, error) {
+	return a.pool.OperateWXData(ctx, acc.LoginBuffer, appID, payload, acc.ID, tcpProxy)
 }
 
 func refreshOut(acc *store.WechatAccount, status string) map[string]any {

@@ -38,6 +38,8 @@ func main() {
 		PinzanSecret:      os.Getenv("YYB_PINZAN_SECRET"),
 		PinzanMinute:      *pinzanMinute,
 		PinzanRegionsFile: *pinzanRegions,
+		APIToken:          os.Getenv("YYB_API_TOKEN"),
+		ProxyTestTimeout:  5 * time.Second,
 	}
 
 	app, err := httpapi.NewApp(cfg)

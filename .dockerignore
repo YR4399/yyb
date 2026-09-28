@@ -5,3 +5,7 @@ Dockerfile
 *.rar
 *.zip
 venv/
+_wcs_api.html
+_sync_to_gh.py
+_sync_to_gh.sh
+gh_tmp/

@@ -25,6 +25,35 @@
 
 页面入口：`GET /`（控制台）、`GET /scan`（扫码页，支持按次开关品赞代理）。
 
+## WCS 兼容接口（`/api/*` 与 `/wx/*`）
+
+在原有的 `/wxapp/*` 与 `/accounts` 之上，本仓库额外提供了一套**与 WCS（微信协议服务器）路径风格一致的兼容接口**，便于原本对接 WCS 的客户端平滑迁移到 yyb：
+
+| 分组 | 方法 & 路径 | 说明 |
+|------|-------------|------|
+| 账号 | `GET /api/accounts` | 列出全部账号（等同 `/accounts`） |
+| 账号 | `POST /api/accounts/add` | 用 `login_buffer` 导入账号 |
+| 账号 | `POST /api/accounts/delete` | 删除账号 |
+| 账号 | `POST /api/accounts/disable` | 启用 / 禁用账号 |
+| 账号 | `POST /api/accounts/remark` | 设置备注 / 别名 |
+| 账号 | `POST /api/accounts/rescan` | 重新校验登录态（刷新） |
+| 账号 | `GET /api/accounts/status` | 查询单个账号状态 |
+| 扫码 | `POST /api/qr/start` | 创建扫码会话（镜像 `/qr`） |
+| 扫码 | `GET /api/qr/status` | 轮询扫码状态（镜像 `/qr/{id}/poll`） |
+| 鉴权 | `POST /api/auth/validate` | 校验调用方令牌 |
+| 代理 | `GET /api/proxies` | 列出全部代理 |
+| 代理 | `POST /api/proxies/add` | 新增代理 |
+| 代理 | `POST /api/proxies/delete` | 删除代理 |
+| 代理 | `POST /api/proxies/test` | 测试代理连通性 |
+| wx | `POST /wx/code` | 获取小程序 code（镜像 `/wxapp/getCode`） |
+| wx | `POST /wx/getphonenumber` | 获取手机号 |
+| wx | `POST /wx/operateWxData` | 小程序云函数 |
+| wx | `POST /wx/getuserinfo` | 获取已存账号资料 |
+| wx | `POST /wx/getsession` | 获取协议会话状态 |
+| wx | `POST /wx/refresh` | 刷新并保存登录态 |
+
+代理可在 `POST /wx/*` 调用时通过 `proxy`（地址）或 `proxy_id`（代理库 id）参数选用，真正生效于微信协议链路。WCS 的其余 `/wx/*` 操作（`oauth`、`qrcodeauth`、`cloud`、`gateway`、`translatelink`、`encryptkey`、`appmsgext`、`appmsglike` 等）yyb 核心协议层尚未实现，调用时返回 `501` 并列出已支持的接口，避免伪造行为。
+
 ## 本项目的主要修改：二维码代理功能
 
 > 核心改动：用户获取二维码时，可以自行选择是否通过品赞代理完成本次扫码登录。
@@ -107,8 +136,12 @@ num=1
 -host              监听地址，默认 127.0.0.1
 -port              监听端口，默认 8000
 -resource-root     运行资源目录，默认 resource
+-tcp-proxy         可选 TCP 代理 socks5://host:port 或 http-connect://host:port，作为 /wx/* 默认出口
 -pinzan-regions    品赞优质池地区编码表，默认 地区表.txt
 -pinzan-minute     代理时长，默认 1 分钟
+YYB_API_TOKEN      可选：设置后 /api/auth/validate 校验此令牌（不设置则为开放模式）
+YYB_PINZAN_NO      品赞套餐购买编号
+YYB_PINZAN_SECRET  品赞提取密钥
 ```
 
 如确需直接监听全部网卡：

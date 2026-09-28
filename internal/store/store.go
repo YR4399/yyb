@@ -51,6 +51,20 @@ CREATE TABLE IF NOT EXISTS features (
     description TEXT,
     enabled     INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS proxies (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    scheme      TEXT    NOT NULL DEFAULT 'socks5',
+    host        TEXT    NOT NULL,
+    port        INTEGER NOT NULL,
+    username    TEXT,
+    password    TEXT,
+    note        TEXT,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_proxies_enabled ON proxies(enabled);
 `
 
 var defaultFeatures = []Feature{
@@ -108,6 +122,20 @@ type Feature struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description"`
 	Enabled     bool    `json:"enabled"`
+}
+
+// Proxy 表示一条可供微信协议调用使用的 TCP 代理（socks5 / http-connect）。
+type Proxy struct {
+	ID        int64   `json:"id"`
+	Scheme    string  `json:"scheme"`
+	Host      string  `json:"host"`
+	Port      int     `json:"port"`
+	Username  *string `json:"username,omitempty"`
+	Password  *string `json:"password,omitempty"`
+	Note      *string `json:"note,omitempty"`
+	Enabled   bool    `json:"enabled"`
+	CreatedAt int64   `json:"created_at"`
+	UpdatedAt int64   `json:"updated_at"`
 }
 
 func Open(path string) (*DB, error) {
@@ -414,6 +442,108 @@ func (db *DB) GetFeatureByName(ctx context.Context, name string) (*Feature, erro
 		return nil, err
 	}
 	return &f, nil
+}
+
+// ---- proxies ----
+
+const selectProxySQL = `SELECT id, scheme, host, port, username, password, note, enabled, created_at, updated_at FROM proxies`
+
+// ListProxies 返回全部代理（按 id 升序）。
+func (db *DB) ListProxies(ctx context.Context) ([]*Proxy, error) {
+	rows, err := db.sql.QueryContext(ctx, selectProxySQL+" ORDER BY id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Proxy
+	for rows.Next() {
+		p, err := scanProxy(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// GetProxy 按 id 查询单条代理。
+func (db *DB) GetProxy(ctx context.Context, id int64) (*Proxy, error) {
+	return scanProxy(db.sql.QueryRowContext(ctx, selectProxySQL+" WHERE id=?", id))
+}
+
+// AddProxy 插入一条代理记录，返回带自增 id 的完整对象。
+func (db *DB) AddProxy(ctx context.Context, scheme, host string, port int, username, password, note *string, enabled bool) (*Proxy, error) {
+	now := time.Now().Unix()
+	if scheme == "" {
+		scheme = "socks5"
+	}
+	res, err := db.sql.ExecContext(ctx,
+		`INSERT INTO proxies (scheme, host, port, username, password, note, enabled, created_at, updated_at)
+		VALUES(?,?,?,?,?,?,?,?,?)`,
+		scheme, host, port, nullableString(username), nullableString(password), nullableString(note), boolToInt(enabled), now, now,
+	)
+	if err != nil {
+		return nil, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	return db.GetProxy(ctx, id)
+}
+
+// DeleteProxy 删除指定代理。
+func (db *DB) DeleteProxy(ctx context.Context, id int64) error {
+	_, err := db.sql.ExecContext(ctx, "DELETE FROM proxies WHERE id=?", id)
+	return err
+}
+
+// SetProxyEnabled 切换代理启用状态。
+func (db *DB) SetProxyEnabled(ctx context.Context, id int64, enabled bool) error {
+	_, err := db.sql.ExecContext(ctx, "UPDATE proxies SET enabled=?, updated_at=? WHERE id=?", boolToInt(enabled), time.Now().Unix(), id)
+	return err
+}
+
+func scanProxy(row accountScanner) (*Proxy, error) {
+	var p Proxy
+	var u, pass, note sql.NullString
+	var enabled int
+	err := row.Scan(&p.ID, &p.Scheme, &p.Host, &p.Port, &u, &pass, &note, &enabled, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	p.Username = stringPtrFromNull(u)
+	p.Password = stringPtrFromNull(pass)
+	p.Note = stringPtrFromNull(note)
+	p.Enabled = enabled != 0
+	if p.Scheme == "" {
+		p.Scheme = "socks5"
+	}
+	return &p, nil
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// ProxyAddr 还原成 yyb 协议层可识别的 tcpProxy 地址（scheme://[user:pass@]host:port）。
+func (p *Proxy) ProxyAddr() string {
+	hostport := p.Host + ":" + strconv.Itoa(p.Port)
+	if p.Username != nil && *p.Username != "" {
+		auth := *p.Username
+		if p.Password != nil && *p.Password != "" {
+			auth += ":" + *p.Password
+		}
+		hostport = auth + "@" + hostport
+	}
+	scheme := p.Scheme
+	if scheme == "" {
+		scheme = "socks5"
+	}
+	return scheme + "://" + hostport
 }
 
 func (a *WechatAccount) Public() AccountPublic {
