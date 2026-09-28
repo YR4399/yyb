@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YYB Go 控制台</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family:"Inter","HarmonyOS Sans SC","MiSans",ui-sans-serif,system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+
+    /* ---------- theme tokens (default: light) ---------- */
+    :root {
+      color-scheme: light;
+      --ink: #242949; --muted: #5d6488; --faint: #8b92b4;
+      --bg-base: #f1f3fb;
+      --glow1: rgba(99,102,241,.17); --glow2: rgba(34,211,238,.13); --glow3: rgba(167,139,250,.13);
+      --glass: rgba(255,255,255,.66); --glass-2: rgba(255,255,255,.92);
+      --stroke: rgba(30,38,90,.11); --stroke-strong: rgba(30,38,90,.22);
+      --shadow: 0 18px 44px -28px rgba(38,48,110,.3), inset 0 1px 0 rgba(255,255,255,.75);
+      --shadow-sm: 0 4px 14px -8px rgba(38,48,110,.25);
+      --input-bg: rgba(255,255,255,.78);
+      --topbar-bg: rgba(255,255,255,.72);
+      --hover-glow: 0 14px 30px -14px rgba(68,60,220,.35);
+      --result-bg: #10132a; --result-ink: #c9d2f5; --result-border: rgba(99,102,241,.3);
+      --result-error: #fda4af;
+      --primary: #6366f1; --cyan: #22d3ee; --violet: #a78bfa;
+      --emerald: #059669; --danger: #dc2626;
+      --b-i-bg: rgba(99,102,241,.12); --b-i-ink: #4a44d4; --b-i-bd: rgba(99,102,241,.35);
+      --b-e-bg: rgba(16,185,129,.1); --b-e-ink: #059669; --b-e-bd: rgba(16,185,129,.35);
+      --b-d-bg: rgba(239,68,68,.09); --b-d-ink: #dc2626; --b-d-bd: rgba(239,68,68,.35);
+      --b-c-bg: rgba(34,211,238,.12); --b-c-ink: #0e7490; --b-c-bd: rgba(34,211,238,.4);
+      --b-v-bg: rgba(167,139,250,.13); --b-v-ink: #7c3aed; --b-v-bd: rgba(167,139,250,.4);
+      --grad-text: linear-gradient(90deg,#1e2246,#4f46e5 60%,#0e7490);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e8ebfa; --muted: #9aa3c7; --faint: #6d7599;
+      --bg-base: #090b16;
+      --glow1: rgba(99,102,241,.28); --glow2: rgba(34,211,238,.16); --glow3: rgba(167,139,250,.17);
+      --glass: rgba(255,255,255,.045); --glass-2: rgba(255,255,255,.07);
+      --stroke: rgba(255,255,255,.09); --stroke-strong: rgba(255,255,255,.22);
+      --shadow: 0 20px 50px -24px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06);
+      --shadow-sm: 0 8px 22px -12px rgba(0,0,0,.6);
+      --input-bg: rgba(9,11,22,.5);
+      --topbar-bg: rgba(13,16,32,.62);
+      --hover-glow: 0 0 22px -6px rgba(99,102,241,.4);
+      --result-bg: rgba(5,7,15,.72); --result-ink: #c9d2f5; --result-border: rgba(99,102,241,.25);
+      --result-error: #fb7185;
+      --emerald: #34d399; --danger: #fb7185;
+      --b-i-bg: rgba(99,102,241,.16); --b-i-ink: #a5b4fc; --b-i-bd: rgba(99,102,241,.35);
+      --b-e-bg: rgba(52,211,153,.12); --b-e-ink: #34d399; --b-e-bd: rgba(52,211,153,.3);
+      --b-d-bg: rgba(251,113,133,.12); --b-d-ink: #fb7185; --b-d-bd: rgba(251,113,133,.35);
+      --b-c-bg: rgba(34,211,238,.12); --b-c-ink: #67e8f9; --b-c-bd: rgba(34,211,238,.3);
+      --b-v-bg: rgba(167,139,250,.14); --b-v-ink: #c4b5fd; --b-v-bd: rgba(167,139,250,.32);
+      --grad-text: linear-gradient(90deg,#fff,#c7d2fe 60%,#a5f3fc);
+    }
+
+    body {
+      min-height:100vh; color:var(--ink); font-size:14px; line-height:1.5;
+      background:var(--bg-base);
+      background-image:
+        radial-gradient(900px 520px at 12% -10%, var(--glow1), transparent 60%),
+        radial-gradient(800px 480px at 88% -12%, var(--glow2), transparent 55%),
+        radial-gradient(1000px 700px at 50% 118%, var(--glow3), transparent 60%);
+      background-attachment:fixed;
+      transition:background-color .3s, color .3s;
+    }
+    ::selection { background:rgba(99,102,241,.35); }
+
+    .topbar {
+      position:sticky; top:0; z-index:10;
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
+      padding:13px 30px;
+      background:var(--topbar-bg); backdrop-filter:blur(18px) saturate(1.4);
+      -webkit-backdrop-filter:blur(18px) saturate(1.4);
+      border-bottom:1px solid var(--stroke);
+      transition:background .3s;
+    }
+    .brand { display:flex; align-items:center; gap:12px; min-width:0; }
+    .mark {
+      width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;
+      background:linear-gradient(135deg,#6366f1,#a78bfa 55%,#22d3ee 120%);
+      color:#fff;font-weight:800;font-size:18px;
+      box-shadow:0 0 26px rgba(99,102,241,.5), inset 0 1px 0 rgba(255,255,255,.3);
+    }
+    .brand h1 { font-size:17px; font-weight:770; letter-spacing:.2px; }
+    .brand span { display:block; font-size:11.5px; color:var(--faint); font-weight:400;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .top-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    .status-pill {
+      display:inline-flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600;
+      padding:6px 13px; border-radius:999px; white-space:nowrap;
+      background:var(--glass); border:1px solid var(--stroke); color:var(--muted);
+    }
+    .status-pill.ok { background:var(--b-e-bg); border-color:var(--b-e-bd); color:var(--emerald); }
+    .status-pill.bad { background:var(--b-d-bg); border-color:var(--b-d-bd); color:var(--danger); }
+    .status-dot { width:7px;height:7px;border-radius:50%;background:var(--faint);flex:0 0 auto; }
+    .status-pill.ok .status-dot { background:var(--emerald); box-shadow:0 0 10px var(--emerald);
+      animation:dot-pulse 2.2s infinite; }
+    .status-pill.bad .status-dot { background:var(--danger); box-shadow:0 0 10px var(--danger); }
+    @keyframes dot-pulse { 70% { box-shadow:0 0 0 6px transparent; } 100% { box-shadow:0 0 0 0 transparent; } }
+
+    .btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:7px; border:none; cursor:pointer;
+      border-radius:11px; padding:9px 17px; font-size:13.5px; font-weight:640; text-decoration:none;
+      transition:transform .16s, box-shadow .16s, background .16s, border-color .16s, color .16s;
+    }
+    .btn:hover { transform:translateY(-1px); }
+    .btn:disabled { cursor:not-allowed; opacity:.62; transform:none; }
+    .btn-primary {
+      background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff;
+      box-shadow:0 0 24px -4px rgba(99,102,241,.55), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .btn-primary:hover { box-shadow:0 0 32px -2px rgba(99,102,241,.7); }
+    .btn-ghost {
+      background:var(--glass); color:var(--ink); border:1px solid var(--stroke);
+      backdrop-filter:blur(10px);
+    }
+    .btn-ghost:hover { background:var(--glass-2); border-color:var(--stroke-strong); }
+    .btn-icon { padding:9px 12px; font-size:15px; line-height:1; }
+    .btn:focus-visible, .account-card:focus-visible, .link:focus-visible {
+      outline:3px solid rgba(129,140,248,.6); outline-offset:2px; }
+
+    .shell { max-width:1380px; margin:0 auto; padding:26px 30px 40px; display:grid; gap:18px; }
+
+    .greet { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    .greet h2 { font-size:23px; font-weight:780; letter-spacing:-.3px;
+      background:var(--grad-text); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .greet p { color:var(--muted); font-size:13px; margin-top:5px; }
+    .greet-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+    .card {
+      background:var(--glass); border:1px solid var(--stroke); border-radius:18px;
+      backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+      box-shadow:var(--shadow);
+      transition:background .3s, border-color .18s, box-shadow .18s;
+    }
+    .card-head { display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:15px 22px; border-bottom:1px solid var(--stroke); flex-wrap:wrap; }
+    .card-head h3 { font-size:14.5px; font-weight:720; display:flex; align-items:center; gap:9px; }
+    .card-head h3::before { content:""; width:4px; height:15px; border-radius:99px;
+      background:linear-gradient(180deg,#6366f1,#22d3ee); box-shadow:0 0 8px rgba(99,102,241,.7); }
+    .card-title { display:grid; gap:2px; min-width:0; }
+    .card-title p { color:var(--faint); font-size:12px; margin-top:2px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .card-body { padding:20px 22px; display:grid; gap:14px; }
+    .head-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+    /* ---------- stats ---------- */
+    .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+    .stat { padding:17px 18px; display:grid; gap:9px; position:relative; overflow:hidden;
+      transition:transform .18s, border-color .18s, box-shadow .18s; }
+    .stat:hover { transform:translateY(-3px); border-color:rgba(129,140,248,.5); box-shadow:var(--hover-glow); }
+    .stat::after { content:""; position:absolute; width:130px;height:130px; right:-40px; top:-40px;
+      border-radius:50%; background:radial-gradient(circle, var(--glow1), transparent 70%); pointer-events:none; }
+    .stat-label { color:var(--muted); font-size:12.5px; font-weight:550; display:flex; justify-content:space-between; align-items:center; }
+    .stat-num { font-size:29px; font-weight:790; letter-spacing:-.5px; font-variant-numeric:tabular-nums;
+      background:var(--grad-text); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .stat-num.is-text { font-size:17px; letter-spacing:0; }
+    .badge { font-size:11px; font-weight:680; padding:3px 9px; border-radius:99px; }
+    .b-i { background:var(--b-i-bg); color:var(--b-i-ink); border:1px solid var(--b-i-bd); }
+    .b-e { background:var(--b-e-bg); color:var(--b-e-ink); border:1px solid var(--b-e-bd); }
+    .b-c { background:var(--b-c-bg); color:var(--b-c-ink); border:1px solid var(--b-c-bd); }
+    .b-v { background:var(--b-v-bg); color:var(--b-v-ink); border:1px solid var(--b-v-bd); }
+
+    /* ---------- accounts ---------- */
+    .account-strip { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(230px,1fr); gap:12px;
+      overflow-x:auto; padding-bottom:4px; scrollbar-width:thin; min-height:86px; }
+    .account-card { display:flex; gap:12px; align-items:center; padding:14px; border-radius:14px; cursor:pointer;
+      border:1.5px solid var(--stroke); background:var(--glass-2); color:var(--ink); font:inherit; width:100%; text-align:left;
+      transition:border-color .15s, background .15s, transform .15s, box-shadow .15s; }
+    .account-card:hover { transform:translateY(-2px); border-color:rgba(129,140,248,.55); box-shadow:var(--hover-glow); }
+    .account-card.selected { border-color:#818cf8; background:var(--b-i-bg);
+      box-shadow:0 0 0 3px rgba(99,102,241,.14), var(--hover-glow); }
+    .avatar { width:42px;height:42px;border-radius:50%;display:grid;place-items:center;overflow:hidden;
+      font-weight:750;color:#fff;font-size:15px; flex:0 0 auto;
+      background:linear-gradient(135deg,#6366f1,#a78bfa); }
+    .avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .avatar-letter { width:42px;height:42px;border-radius:50%;display:grid;place-items:center;
+      background:var(--glass); color:var(--muted); font-weight:750; border:1px solid var(--stroke); }
+    .account-main { min-width:0; display:grid; }
+    .account-name { font-weight:700; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .account-meta { color:var(--faint); font-size:11.5px; margin-top:3px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .account-status { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:650; margin-top:5px; color:var(--muted); }
+    .account-status i, .account-status .status-dot { width:6px;height:6px;border-radius:50%;background:var(--faint); }
+    .account-status.alive { color:var(--emerald); }
+    .account-status.alive .status-dot { background:var(--emerald); box-shadow:0 0 8px var(--emerald); }
+    .account-status.expired { color:var(--danger); }
+    .account-status.expired .status-dot { background:var(--danger); box-shadow:0 0 8px var(--danger); }
+    .empty-state { min-height:86px; width:100%; display:grid; place-items:center; padding:16px;
+      color:var(--muted); font-size:13px; text-align:center;
+      border:1.5px dashed var(--stroke-strong); border-radius:14px; background:var(--glass); }
+
+    /* ---------- work area ---------- */
+    .work { display:grid; grid-template-columns:minmax(330px,1fr) minmax(420px,1.3fr) 270px; gap:16px; align-items:stretch; }
+    .work .card { display:flex; flex-direction:column; }
+    .work .card-body { flex:1; align-content:start; }
+
+    .selected-account { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:linear-gradient(135deg, var(--b-i-bg), var(--b-c-bg));
+      border:1px solid var(--b-i-bd); border-radius:13px; padding:12px 15px; color:var(--muted); }
+    .selected-account strong { font-weight:720; color:var(--ink);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    .field { display:grid; gap:7px; }
+    .field label { font-size:12.5px; font-weight:620; color:var(--muted); }
+    .input, .select, .textarea {
+      width:100%; border:1px solid var(--stroke); border-radius:11px;
+      background:var(--input-bg); color:var(--ink); padding:11px 13px; font-size:13.5px;
+      outline:none; transition:border-color .15s, box-shadow .15s;
+    }
+    .input:focus,.select:focus,.textarea:focus { border-color:#818cf8; box-shadow:0 0 0 3px rgba(99,102,241,.16); }
+    .select option { background:#fff; color:#242949; }
+    html[data-theme="dark"] .select option { background:#12142a; color:#e8ebfa; }
+    .textarea { min-height:150px; font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;
+      font-size:12.5px; line-height:1.6; resize:vertical; }
+    .inline-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+    .result-box {
+      flex:1; background:var(--result-bg); border:1px solid var(--result-border); border-radius:14px;
+      color:var(--result-ink); padding:17px; min-height:300px; max-height:560px; overflow:auto;
+      box-shadow:inset 0 0 40px rgba(99,102,241,.07);
+      font-family:"JetBrains Mono",ui-monospace,Consolas,monospace; font-size:12.5px; line-height:1.65;
+      white-space:pre-wrap; word-break:break-word;
+    }
+    .result-box.error { color:var(--result-error); }
+
+    .rail { display:grid; gap:14px; align-content:start; }
+    .quick-list { display:grid; gap:10px; }
+    .link { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      border:1px solid var(--stroke); border-radius:13px; padding:12px 15px; text-decoration:none;
+      color:var(--ink); background:var(--glass);
+      transition:border-color .15s, transform .15s, box-shadow .15s; }
+    .link:hover { border-color:rgba(129,140,248,.5); transform:translateY(-1px); box-shadow:var(--hover-glow); }
+    .link b { font-size:13px; font-weight:680; display:block; }
+    .link span.sub { font-size:11.5px; color:var(--faint); }
+    .link .arr { color:var(--faint); font-weight:700; }
+    .activity { background:var(--glass); border:1px dashed var(--stroke-strong); border-radius:13px;
+      padding:12px 15px; color:var(--muted); font-size:12px; line-height:1.7; }
+    .activity b { font-size:12px; color:var(--ink); display:block; margin-bottom:3px; }
+
+    .hidden { display:none !important; }
+
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-thumb { background:var(--stroke-strong); border-radius:99px;
+      border:2px solid transparent; background-clip:padding-box; }
+
+    @media (max-width:1180px){ .work{grid-template-columns:1fr 1.3fr;} .rail{grid-column:1/-1;grid-template-columns:1fr 1fr;} }
+    @media (max-width:1080px){ .stats{grid-template-columns:repeat(2,1fr);} }
+    @media (max-width:860px){
+      .work{grid-template-columns:1fr;} .rail{grid-template-columns:1fr;}
+      .topbar{flex-wrap:wrap; padding:13px 16px;} .shell{padding:20px 16px 32px;}
+      .top-actions{width:100%;} .top-actions .btn{flex:1;}
+      .account-strip{grid-auto-columns:minmax(222px,86vw);}
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration:1ms !important; animation-duration:1ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">Y</div>
+      <div>
+        <h1>YYB Go 控制台</h1>
+        <span>账号 · 扫码 · 能力调用</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="status-pill" id="healthPill"><span class="status-dot"></span><span>检测服务中</span></span>
+      <a class="btn btn-ghost" href="/docs/index.html">Swagger</a>
+      <a class="btn btn-primary" href="/scan">＋ 扫码添加</a>
+      <button class="btn btn-ghost btn-icon" id="themeToggle" type="button" title="切换深浅色" aria-label="切换深浅色">🌙</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="greet">
+      <div>
+        <h2>选择账号，执行服务调用</h2>
+        <p>按「选账号 → 配能力 → 看结果」自上而下操作，接口详情保留在 Swagger。</p>
+      </div>
+      <div class="greet-actions">
+        <button class="btn btn-ghost" id="refreshAllBtn" type="button">刷新存活</button>
+        <button class="btn btn-ghost" id="resyncAllBtn" type="button">同步资料</button>
+      </div>
+    </div>
+
+    <section class="stats" aria-label="运行统计">
+      <div class="card stat"><div class="stat-label"><span>账号总数</span></div><div class="stat-num" id="accountCount">0</div></div>
+      <div class="card stat"><div class="stat-label"><span>可用账号</span></div><div class="stat-num" id="aliveCount">0</div></div>
+      <div class="card stat"><div class="stat-label"><span>已接入能力</span></div><div class="stat-num" id="featureCount">0</div></div>
+      <div class="card stat"><div class="stat-label"><span>当前账号</span></div><div class="stat-num is-text" id="currentAccountText">未选择</div></div>
+    </section>
+
+    <section class="card" aria-label="账号队列">
+      <div class="card-head">
+        <div class="card-title">
+          <h3>账号队列</h3>
+          <p>点击账号后，调用面板将使用该账号</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn btn-ghost" id="reloadAccountsBtn" type="button">重新加载</button>
+          <a class="btn btn-primary" href="/scan">＋ 添加账号</a>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="account-strip" id="accountStrip">
+          <div class="empty-state">账号加载中</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="work" aria-label="调用工作区">
+      <div class="card" aria-label="调用配置">
+        <div class="card-head">
+          <div class="card-title">
+            <h3>调用配置</h3>
+            <p>配置目标小程序和能力参数</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="selected-account">
+            <span>当前账号</span>
+            <strong id="selectedAccountName">未选择</strong>
+          </div>
+          <div class="field">
+            <label for="featureSel">能力</label>
+            <select class="select" id="featureSel"></select>
+          </div>
+          <div class="field">
+            <label for="appidInput">APPID</label>
+            <input class="input" id="appidInput" value="wx141bfb9b73c970a9" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field hidden" id="payloadGroup">
+            <label for="payloadInput">请求 JSON</label>
+            <textarea class="textarea" id="payloadInput" spellcheck="false">{"api_name":"getUserInfo","data":{},"env":1}</textarea>
+          </div>
+          <div class="inline-actions">
+            <button class="btn btn-primary" id="callBtn" type="button">▶ 执行调用</button>
+            <button class="btn btn-ghost" id="clearResultBtn" type="button">清空结果</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card result-panel" aria-label="调用结果">
+        <div class="card-head">
+          <div class="card-title">
+            <h3>返回结果</h3>
+            <p id="resultMeta">等待调用</p>
+          </div>
+          <button class="btn btn-ghost" id="copyResultBtn" type="button">复制</button>
+        </div>
+        <div class="card-body">
+          <pre class="result-box" id="resultBox">选择账号并执行调用后，返回内容会显示在这里。</pre>
+        </div>
+      </div>
+
+      <aside class="rail" aria-label="系统入口">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title"><h3>系统入口</h3></div>
+          </div>
+          <div class="card-body">
+            <div class="quick-list">
+              <a class="link" href="/docs/index.html">
+                <span><b>Swagger 文档</b><span class="sub">完整 OpenAPI 接口</span></span>
+                <span class="arr">›</span>
+              </a>
+              <a class="link" href="/openapi.json">
+                <span><b>OpenAPI JSON</b><span class="sub">接口工具导入</span></span>
+                <span class="arr">›</span>
+              </a>
+              <a class="link" href="/scan">
+                <span><b>扫码页面</b><span class="sub">添加微信账号</span></span>
+                <span class="arr">›</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="activity">
+          <b>最近操作</b>
+          <span id="activityLine">尚未执行操作</span>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const themeRoot = document.documentElement;
+    const themeBtn = document.getElementById("themeToggle");
+    function applyTheme(t) {
+      themeRoot.dataset.theme = t;
+      themeBtn.textContent = t === "dark" ? "☀️" : "🌙";
+      try { localStorage.setItem("yyb-theme", t); } catch {}
+    }
+    let savedTheme = null;
+    try { savedTheme = localStorage.getItem("yyb-theme"); } catch {}
+    applyTheme(savedTheme || "light");
+    themeBtn.addEventListener("click", () => applyTheme(themeRoot.dataset.theme === "dark" ? "light" : "dark"));
+
+    const state = {
+      accounts: [],
+      features: [
+        { name: "getCode" },
+        { name: "getPhoneNumber" },
+        { name: "operateWxData" }
+      ],
+      selectedOpenID: "",
+      lastResult: ""
+    };
+
+    const $ = id => document.getElementById(id);
+
+    function escapeHTML(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function api(method, url, body) {
+      const options = { method, headers: { "Content-Type": "application/json" } };
+      if (body !== undefined) options.body = JSON.stringify(body);
+      const response = await fetch(url, options);
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+      const isEnvelope = data && typeof data === "object" && !Array.isArray(data)
+        && Object.prototype.hasOwnProperty.call(data, "code")
+        && Object.prototype.hasOwnProperty.call(data, "msg")
+        && Object.prototype.hasOwnProperty.call(data, "data");
+      if (!response.ok || (isEnvelope && data.code !== 0)) {
+        const error = new Error(isEnvelope ? data.msg : "HTTP " + response.status);
+        error.status = response.status;
+        error.code = isEnvelope ? data.code : response.status;
+        error.data = isEnvelope ? data.data : data;
+        error.payload = data;
+        throw error;
+      }
+      return isEnvelope ? data.data : data;
+    }
+
+    function accountName(account) {
+      return account.nickname || account.alias || account.openid || "未命名账号";
+    }
+
+    function statusText(status) {
+      if (status === "alive") return "可用";
+      if (status === "expired") return "需重扫";
+      return "待确认";
+    }
+
+    function statusClass(status) {
+      if (status === "alive") return "alive";
+      if (status === "expired") return "expired";
+      return "unknown";
+    }
+
+    function formatChecked(ts) {
+      if (!ts) return "未检测";
+      const date = new Date(ts * 1000);
+      const pad = n => String(n).padStart(2, "0");
+      return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    function setActivity(message) {
+      $("activityLine").textContent = message;
+    }
+
+    function setResult(value, meta, isError) {
+      const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      state.lastResult = text;
+      $("resultBox").textContent = text;
+      $("resultBox").classList.toggle("error", Boolean(isError));
+      $("resultMeta").textContent = meta || "已更新";
+    }
+
+    function selectedAccount() {
+      return state.accounts.find(item => item.openid === state.selectedOpenID) || null;
+    }
+
+    function syncSelectedAccount() {
+      const selected = selectedAccount();
+      const label = selected ? accountName(selected) : "未选择";
+      $("selectedAccountName").textContent = label;
+      $("currentAccountText").textContent = label;
+      document.querySelectorAll(".account-card").forEach(card => {
+        card.classList.toggle("selected", card.dataset.openid === state.selectedOpenID);
+      });
+    }
+
+    function renderStats() {
+      $("accountCount").textContent = String(state.accounts.length);
+      $("aliveCount").textContent = String(state.accounts.filter(item => item.status === "alive").length);
+      $("featureCount").textContent = String(state.features.length);
+      syncSelectedAccount();
+    }
+
+    function renderAccounts() {
+      const strip = $("accountStrip");
+      if (!state.accounts.length) {
+        strip.innerHTML = `<div class="empty-state">暂无账号，点击“添加账号”开始扫码。</div>`;
+        state.selectedOpenID = "";
+        renderStats();
+        return;
+      }
+
+      if (!state.accounts.some(item => item.openid === state.selectedOpenID)) {
+        state.selectedOpenID = state.accounts[0].openid;
+      }
+
+      strip.innerHTML = "";
+      for (const account of state.accounts) {
+        const name = accountName(account);
+        const cls = statusClass(account.status);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "account-card";
+        button.dataset.openid = account.openid;
+        button.innerHTML = `
+          <span class="avatar">
+            <img alt="" src="/accounts/avatar?ref=${encodeURIComponent(account.openid)}">
+            <span class="avatar-letter hidden">${escapeHTML(name.slice(0, 1).toUpperCase() || "Y")}</span>
+          </span>
+          <span class="account-main">
+            <span class="account-name">${escapeHTML(name)}</span>
+            <span class="account-status ${cls}"><span class="status-dot"></span>${statusText(account.status)}</span>
+            <span class="account-meta">uin: ${escapeHTML(account.uin ?? "-")} · ${formatChecked(account.last_checked_at)}</span>
+          </span>
+        `;
+        button.querySelector("img").addEventListener("error", event => {
+          event.currentTarget.classList.add("hidden");
+          button.querySelector(".avatar-letter").classList.remove("hidden");
+        });
+        button.addEventListener("click", () => {
+          state.selectedOpenID = account.openid;
+          syncSelectedAccount();
+          setActivity(`已选择账号：${name}`);
+        });
+        strip.appendChild(button);
+      }
+      renderStats();
+    }
+
+    function renderFeatures() {
+      const select = $("featureSel");
+      if (!state.features.length) {
+        select.innerHTML = `<option value="">暂无能力</option>`;
+        togglePayload();
+        return;
+      }
+      select.innerHTML = state.features.map(feature => {
+        return `<option value="${escapeHTML(feature.name)}" data-name="${escapeHTML(feature.name)}">${escapeHTML(feature.name)}</option>`;
+      }).join("");
+      togglePayload();
+      renderStats();
+    }
+
+    function currentFeatureName() {
+      const option = $("featureSel").selectedOptions[0];
+      return option ? option.dataset.name || "" : "";
+    }
+
+    function togglePayload() {
+      const needsPayload = currentFeatureName().toLowerCase() === "operatewxdata";
+      $("payloadGroup").classList.toggle("hidden", !needsPayload);
+    }
+
+    async function loadHealth() {
+      const pill = $("healthPill");
+      try {
+        await api("GET", "/health");
+        pill.classList.add("ok");
+        pill.classList.remove("bad");
+        pill.querySelector("span:last-child").textContent = "服务正常";
+      } catch {
+        pill.classList.add("bad");
+        pill.classList.remove("ok");
+        pill.querySelector("span:last-child").textContent = "服务异常";
+      }
+    }
+
+    async function loadAccounts() {
+      $("accountStrip").innerHTML = `<div class="empty-state">账号加载中</div>`;
+      try {
+        state.accounts = await api("GET", "/accounts");
+        renderAccounts();
+        setActivity("账号列表已加载");
+      } catch (error) {
+        $("accountStrip").innerHTML = `<div class="empty-state">账号加载失败：${escapeHTML(error.data?.detail || error.message)}</div>`;
+        setActivity("账号列表加载失败");
+      }
+    }
+
+    async function loadFeatures() {
+      renderFeatures();
+    }
+
+    async function refreshAll() {
+      const button = $("refreshAllBtn");
+      button.disabled = true;
+      button.textContent = "刷新中";
+      try {
+        const result = await api("POST", "/accounts/refresh");
+        setResult(result, "存活刷新完成", false);
+        await loadAccounts();
+      } catch (error) {
+        setResult(error.data || error.message, "存活刷新失败", true);
+      } finally {
+        button.disabled = false;
+        button.textContent = "刷新存活";
+      }
+    }
+
+    async function resyncAll() {
+      const button = $("resyncAllBtn");
+      button.disabled = true;
+      button.textContent = "同步中";
+      try {
+        const result = await api("POST", "/accounts/resync");
+        setResult(result, "资料同步完成", false);
+        await loadAccounts();
+      } catch (error) {
+        setResult(error.data || error.message, "资料同步失败", true);
+      } finally {
+        button.disabled = false;
+        button.textContent = "同步资料";
+      }
+    }
+
+    async function callFeature() {
+      const account = selectedAccount();
+      if (!account) {
+        setResult("请先选择一个账号。", "缺少账号", true);
+        return;
+      }
+
+      const endpoint = currentFeatureName();
+      const appID = $("appidInput").value.trim();
+      if (!endpoint) {
+        setResult("当前没有可调用能力。", "缺少能力", true);
+        return;
+      }
+      if (!appID) {
+        setResult("请输入 APPID。", "缺少 APPID", true);
+        return;
+      }
+
+      const body = { ref: account.openid, app_id: appID };
+      if (endpoint.toLowerCase() === "operatewxdata") {
+        const raw = $("payloadInput").value.trim();
+        if (!raw) {
+          setResult("operateWxData 需要请求 JSON。", "缺少 payload", true);
+          return;
+        }
+        try {
+          body.payload = JSON.parse(raw);
+        } catch {
+          setResult("请求 JSON 格式不正确。", "JSON 解析失败", true);
+          return;
+        }
+      }
+
+      const button = $("callBtn");
+      button.disabled = true;
+      const startedAt = performance.now();
+      setResult("调用中，首次调用可能需要建立会话。", "请求进行中", false);
+      setActivity(`正在调用 ${endpoint}：${accountName(account)}`);
+
+      try {
+        const result = await api("POST", `/wxapp/${endpoint}`, body);
+        const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+        setResult(result, `调用完成，用时 ${seconds}s`, false);
+        await loadAccounts();
+      } catch (error) {
+        setResult(error.data || error.message, `调用失败 ${error.status || ""}`.trim(), true);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    $("reloadAccountsBtn").addEventListener("click", loadAccounts);
+    $("refreshAllBtn").addEventListener("click", refreshAll);
+    $("resyncAllBtn").addEventListener("click", resyncAll);
+    $("featureSel").addEventListener("change", togglePayload);
+    $("callBtn").addEventListener("click", callFeature);
+    $("clearResultBtn").addEventListener("click", () => setResult("结果已清空。", "等待调用", false));
+    $("copyResultBtn").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(state.lastResult || $("resultBox").textContent);
+        setActivity("结果已复制");
+      } catch {
+        setActivity("复制失败，请手动选择结果内容");
+      }
+    });
+
+    loadHealth();
+    loadFeatures();
+    loadAccounts();
+    setInterval(loadHealth, 15000);
+  </script>
+</body>
+</html>

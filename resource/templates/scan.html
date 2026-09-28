@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>扫码添加账号</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family:"Inter","HarmonyOS Sans SC","MiSans",ui-sans-serif,system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif; }
+
+    /* ---------- theme tokens (default: light) ---------- */
+    :root {
+      color-scheme: light;
+      --ink: #242949; --muted: #5d6488; --faint: #8b92b4;
+      --bg-base: #f1f3fb;
+      --glow1: rgba(99,102,241,.17); --glow2: rgba(34,211,238,.13); --glow3: rgba(167,139,250,.13);
+      --glass: rgba(255,255,255,.66); --glass-2: rgba(255,255,255,.92);
+      --stroke: rgba(30,38,90,.11); --stroke-strong: rgba(30,38,90,.22);
+      --shadow: 0 18px 44px -28px rgba(38,48,110,.3), inset 0 1px 0 rgba(255,255,255,.75);
+      --input-bg: rgba(255,255,255,.78);
+      --hover-glow: 0 14px 30px -14px rgba(68,60,220,.35);
+      --primary: #6366f1; --cyan: #22d3ee;
+      --emerald: #059669; --danger: #dc2626;
+      --b-i-bg: rgba(99,102,241,.12); --b-i-bd: rgba(99,102,241,.35);
+      --b-e-bg: rgba(16,185,129,.1); --b-e-bd: rgba(16,185,129,.35);
+      --b-d-bg: rgba(239,68,68,.09); --b-d-bd: rgba(239,68,68,.35);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e8ebfa; --muted: #9aa3c7; --faint: #6d7599;
+      --bg-base: #090b16;
+      --glow1: rgba(99,102,241,.28); --glow2: rgba(34,211,238,.16); --glow3: rgba(167,139,250,.17);
+      --glass: rgba(255,255,255,.045); --glass-2: rgba(255,255,255,.07);
+      --stroke: rgba(255,255,255,.09); --stroke-strong: rgba(255,255,255,.22);
+      --shadow: 0 20px 50px -24px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06);
+      --input-bg: rgba(9,11,22,.5);
+      --hover-glow: 0 0 22px -6px rgba(99,102,241,.4);
+      --emerald: #34d399; --danger: #fb7185;
+      --b-i-bg: rgba(99,102,241,.16); --b-i-bd: rgba(99,102,241,.35);
+      --b-e-bg: rgba(52,211,153,.12); --b-e-bd: rgba(52,211,153,.3);
+      --b-d-bg: rgba(251,113,133,.12); --b-d-bd: rgba(251,113,133,.35);
+    }
+
+    body {
+      min-height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      color:var(--ink); padding:24px; font-size:14px; line-height:1.5;
+      background:var(--bg-base);
+      background-image:
+        radial-gradient(900px 520px at 12% -10%, var(--glow1), transparent 60%),
+        radial-gradient(800px 480px at 88% -12%, var(--glow2), transparent 55%),
+        radial-gradient(1000px 700px at 50% 118%, var(--glow3), transparent 60%);
+      background-attachment:fixed;
+      transition:background-color .3s, color .3s;
+    }
+    ::selection { background:rgba(99,102,241,.35); }
+
+    .theme-float {
+      position:fixed; top:18px; right:18px; z-index:10;
+    }
+
+    .box {
+      background:var(--glass); border:1px solid var(--stroke); border-radius:20px;
+      backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+      box-shadow:var(--shadow);
+      width:480px; max-width:100%;
+      padding:32px 30px; text-align:center;
+      transition:background .3s;
+    }
+    .brand { display:flex; align-items:center; justify-content:center; gap:11px; margin-bottom:14px; }
+    .mark {
+      width:40px; height:40px; border-radius:12px; flex:0 0 auto;
+      display:grid; place-items:center;
+      background:linear-gradient(135deg,#6366f1,#a78bfa 55%,#22d3ee 120%);
+      color:#fff; font-weight:800; font-size:18px;
+      box-shadow:0 0 26px rgba(99,102,241,.5), inset 0 1px 0 rgba(255,255,255,.3);
+    }
+    .brand h2 { font-size:19px; font-weight:770; text-align:left; letter-spacing:.2px; }
+    .sub { color:var(--muted); font-size:13px; margin-bottom:22px; }
+
+    .proxy-switch { display:flex; align-items:center; justify-content:center; gap:8px; margin:0 auto 12px; font-size:13px; color:var(--muted); cursor:pointer; }
+    .proxy-switch input { width:16px; height:16px; accent-color:var(--primary); }
+    .proxy-options {
+      margin:0 0 18px; padding:14px;
+      border:1px solid var(--stroke); border-radius:13px;
+      background:var(--glass-2); text-align:left;
+      box-shadow:var(--shadow);
+    }
+    .proxy-options.hidden { display:none; }
+    .proxy-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .proxy-field { display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); font-weight:620; }
+    .proxy-field select,.proxy-field input {
+      width:100%; border:1px solid var(--stroke); border-radius:10px;
+      padding:9px 11px; background:var(--input-bg); color:var(--ink); outline:none;
+      font-size:13px;
+      transition:border-color .16s, box-shadow .16s;
+    }
+    .proxy-field select:focus,.proxy-field input:focus {
+      border-color:#818cf8;
+      box-shadow:0 0 0 3px rgba(99,102,241,.16);
+    }
+    .proxy-field select option { background:#fff; color:#242949; }
+    html[data-theme="dark"] .proxy-field select option { background:#12142a; color:#e8ebfa; }
+    .proxy-help { margin-top:10px; color:var(--faint); font-size:11px; line-height:1.6; }
+
+    .qr-wrap {
+      width:250px; height:250px; margin:0 auto 16px;
+      border:1.5px solid var(--stroke);
+      border-radius:16px;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden; background:var(--glass-2);
+      box-shadow:var(--shadow), inset 0 0 0 6px var(--glass);
+      position:relative;
+    }
+    .qr-wrap::after {
+      content:""; position:absolute; inset:0; border-radius:16px; pointer-events:none;
+      background:linear-gradient(135deg, rgba(99,102,241,.06), transparent 40%);
+    }
+    .qr-wrap img { width:100%; height:100%; object-fit:contain; padding:12px; }
+    .qr-placeholder { color:var(--faint); font-size:13px; }
+    .qr-expired { color:var(--danger); font-size:15px; font-weight:700; }
+    .qr-success { color:var(--emerald); font-size:52px; line-height:1; text-shadow:0 0 24px rgba(16,185,129,.5); }
+
+    .status { font-size:14px; margin-bottom:10px; min-height:22px; font-weight:600; }
+    .s-pending { color:var(--muted); }
+    .s-scanned { color:var(--primary); animation:status-blink 1.2s ease-in-out infinite; }
+    .s-authorized,.s-ok { color:var(--emerald); }
+    .s-err { color:var(--danger); }
+    @keyframes status-blink { 50% { opacity:.55; } }
+    #countdown { font-size:12px; color:var(--faint); margin-bottom:18px; min-height:16px; font-variant-numeric:tabular-nums; }
+
+    .acc {
+      background:var(--b-e-bg);
+      border:1px solid var(--b-e-bd);
+      border-radius:13px; padding:14px; margin-bottom:18px;
+      text-align:left; font-size:13px; color:var(--muted);
+      display:none; line-height:1.7; word-break:break-all;
+    }
+    .acc b { color:var(--emerald); }
+
+    .btn {
+      display:inline-flex; align-items:center; justify-content:center; gap:7px;
+      border:none; border-radius:11px; cursor:pointer;
+      font-size:13.5px; font-weight:640; padding:11px 22px;
+      transition:filter .2s, transform .2s, box-shadow .2s, border-color .2s; margin:0 5px;
+    }
+    .btn:hover { transform:translateY(-1px); }
+    .btn:focus-visible { outline:3px solid rgba(129,140,248,.6); outline-offset:2px; }
+    .btn-primary {
+      background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff;
+      box-shadow:0 0 24px -4px rgba(99,102,241,.55), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .btn-primary:hover { box-shadow:0 0 32px -2px rgba(99,102,241,.7); }
+    .btn-ghost {
+      background:var(--glass); color:var(--ink);
+      border:1px solid var(--stroke);
+      backdrop-filter:blur(10px);
+    }
+    .btn-ghost:hover { background:var(--glass-2); border-color:var(--stroke-strong); }
+    .btn-icon { padding:9px 12px; font-size:15px; line-height:1; }
+
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-thumb { background:var(--stroke-strong); border-radius:99px;
+      border:2px solid transparent; background-clip:padding-box; }
+
+    @media (max-width:760px){ .box{padding:26px 20px;} }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration:1ms !important; animation-duration:1ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <button class="btn btn-ghost btn-icon theme-float" id="themeToggle" type="button" title="切换深浅色" aria-label="切换深浅色">🌙</button>
+
+  <div class="box">
+    <div class="brand">
+      <div class="mark" aria-hidden="true">Y</div>
+      <h2>扫码添加账号</h2>
+    </div>
+    <div class="sub">用「手机微信」扫描下方二维码并确认登录</div>
+    <label class="proxy-switch"><input type="checkbox" id="proxyEnabled">使用品赞代理获取二维码</label>
+    <div class="proxy-options hidden" id="proxyOptions">
+      <div class="proxy-row">
+        <label class="proxy-field">省份
+          <select id="proxyProvince">
+            <option value="all">地区加载中…</option>
+          </select>
+        </label>
+        <label class="proxy-field">城市
+          <select id="proxyCity" disabled><option value="all">全国随机</option></select>
+        </label>
+      </div>
+      <div class="proxy-help" id="proxyHelp">固定使用优质池和白名单模式，省市选项来自地区表中的官方编码。请先在品赞后台把服务器公网 IP 加入套餐白名单。</div>
+    </div>
+    <div class="qr-wrap" id="qrWrap"><span class="qr-placeholder">生成中…</span></div>
+    <div class="status s-pending" id="status">正在获取二维码…</div>
+    <div id="countdown"></div>
+    <div class="acc" id="accBox"></div>
+    <div>
+      <button class="btn btn-primary" id="refreshBtn" type="button">重新生成二维码</button>
+      <button class="btn btn-ghost" id="backBtn" type="button">返回列表</button>
+    </div>
+  </div>
+
+  <script>
+    const themeRoot = document.documentElement;
+    const themeBtn = document.getElementById("themeToggle");
+    function applyTheme(t) {
+      themeRoot.dataset.theme = t;
+      themeBtn.textContent = t === "dark" ? "☀️" : "🌙";
+      try { localStorage.setItem("yyb-theme", t); } catch {}
+    }
+    let savedTheme = null;
+    try { savedTheme = localStorage.getItem("yyb-theme"); } catch {}
+    applyTheme(savedTheme || "light");
+    themeBtn.addEventListener("click", () => applyTheme(themeRoot.dataset.theme === "dark" ? "light" : "dark"));
+
+    const $ = id => document.getElementById(id);
+    let sid = null, pollTimer = null, cdTimer = null, secsLeft = 0, qrGeneration = 0, regionCatalog = null, activeProxyText = "";
+
+    async function api(method, url, body) {
+      const options = { method, headers: { "Content-Type": "application/json" } };
+      if (body !== undefined) options.body = JSON.stringify(body);
+      const r = await fetch(url, options);
+      const t = await r.text(); let d; try { d = t ? JSON.parse(t) : null; } catch { d = t; }
+      const isEnvelope = d && typeof d === "object" && !Array.isArray(d)
+        && Object.prototype.hasOwnProperty.call(d, "code")
+        && Object.prototype.hasOwnProperty.call(d, "msg")
+        && Object.prototype.hasOwnProperty.call(d, "data");
+      if (!r.ok || (isEnvelope && d.code !== 0)) {
+        throw { status: r.status, code: isEnvelope ? d.code : r.status, data: isEnvelope ? d.data : d, message: isEnvelope ? d.msg : ("HTTP " + r.status), payload: d };
+      }
+      return isEnvelope ? d.data : d;
+    }
+    function setStatus(text, cls) { const s = $("status"); s.textContent = text; s.className = "status " + cls; }
+    function stopTimers() { if (pollTimer) clearInterval(pollTimer); if (cdTimer) clearInterval(cdTimer); pollTimer = cdTimer = null; }
+
+    async function loadRegions() {
+      try {
+        regionCatalog = await api("GET", "/pinzan/regions");
+        const options = [`<option value="${regionCatalog.nationwide.code}">${regionCatalog.nationwide.label}</option>`];
+        for (const province of regionCatalog.provinces) {
+          options.push(`<option value="${province.code}">${province.label}</option>`);
+        }
+        $("proxyProvince").innerHTML = options.join("");
+        syncCities();
+      } catch (e) {
+        regionCatalog = null;
+        $("proxyProvince").innerHTML = '<option value="">地区表加载失败</option>';
+        $("proxyCity").innerHTML = '<option value="">不可用</option>';
+        $("proxyHelp").textContent = "地区表加载失败：" + (e.message || "未知错误");
+      }
+    }
+
+    function selectedProvince() {
+      if (!regionCatalog) return null;
+      return regionCatalog.provinces.find(item => item.code === $("proxyProvince").value) || null;
+    }
+
+    function syncCities() {
+      const province = selectedProvince();
+      if (!province) {
+        $("proxyCity").innerHTML = '<option value="all">全国随机</option>';
+        $("proxyCity").disabled = true;
+        return;
+      }
+      const options = [`<option value="${province.code}">${province.label}（全省）</option>`];
+      for (const city of province.cities) {
+        options.push(`<option value="${city.code}">${city.label}</option>`);
+      }
+      $("proxyCity").innerHTML = options.join("");
+      $("proxyCity").disabled = false;
+    }
+
+    function selectedArea() {
+      const city = $("proxyCity").value;
+      const code = city || $("proxyProvince").value || "all";
+      const option = city ? $("proxyCity").selectedOptions[0] : $("proxyProvince").selectedOptions[0];
+      return { code, label: option ? option.textContent : "全国" };
+    }
+
+    function showExpired() {
+      stopTimers();
+      sid = null;
+      activeProxyText = "";
+      $("qrWrap").innerHTML = '<span class="qr-expired">已过期</span>';
+      setStatus("二维码已过期，请点击“重新生成二维码”", "s-err");
+      $("countdown").textContent = "有效期已结束";
+    }
+
+    function startCountdown(ttl, proxyEnabled) {
+      secsLeft = ttl;
+      const label = proxyEnabled ? "代理二维码" : "二维码";
+      $("countdown").textContent = `${label} ${secsLeft}s 后过期`;
+      cdTimer = setInterval(() => {
+        secsLeft--;
+        $("countdown").textContent = secsLeft > 0 ? `${label} ${secsLeft}s 后过期` : "二维码已过期";
+        if (secsLeft <= 0) showExpired();
+      }, 1000);
+    }
+
+    async function newQr() {
+      const generation = ++qrGeneration;
+      stopTimers();
+      sid = null;
+      $("accBox").style.display = "none";
+      $("qrWrap").innerHTML = '<span class="qr-placeholder">生成中…</span>';
+      $("countdown").textContent = "";
+      try {
+        const useProxy = $("proxyEnabled").checked;
+        setStatus(useProxy ? "正在提取并检测代理…" : "正在获取二维码…", "s-pending");
+        if (useProxy && !regionCatalog) throw { message: "品赞地区表不可用" };
+        const area = selectedArea();
+        const r = await api("POST", "/qr", {
+          use_proxy: useProxy,
+          area: useProxy ? area.code : ""
+        });
+        if (generation !== qrGeneration) return;
+        sid = r.session_id;
+        $("qrWrap").innerHTML = `<img src="${r.image_url}?t=${Date.now()}" alt="二维码">`;
+        const latencyText = Number.isFinite(r.proxy_latency_ms) ? `，检测延迟 ${r.proxy_latency_ms}ms` : "";
+        activeProxyText = r.proxy_enabled ? `（优质池代理：${area.label}${latencyText}）` : "";
+        setStatus("等待扫码…" + activeProxyText, "s-pending");
+        startCountdown(Number(r.expires_in) || (r.proxy_enabled ? 60 : 110), r.proxy_enabled);
+        pollTimer = setInterval(poll, 1500);
+      } catch (e) {
+        if (generation !== qrGeneration) return;
+        setStatus("获取二维码失败: " + (e.message || JSON.stringify(e.data ?? e)), "s-err");
+      }
+    }
+
+    async function poll() {
+      if (!sid) return;
+      const currentSID = sid;
+      let st;
+      try { st = await api("GET", `/qr/${currentSID}/poll`); } catch { return; }
+      if (currentSID !== sid) return;
+      if (st.status === "pending") setStatus("等待扫码…" + activeProxyText, "s-pending");
+      else if (st.status === "scanned") setStatus("已扫码，请在手机上确认" + activeProxyText, "s-scanned");
+      else if (st.status === "authorized" || st.status === "confirmed") { stopTimers(); await confirm(); }
+      else if (st.status === "expired") showExpired();
+      else if (st.status === "unknown") { stopTimers(); sid = null; setStatus("二维码状态异常，请重新生成", "s-err"); $("countdown").textContent = ""; }
+      else if (st.status === "cancelled") { stopTimers(); setStatus("已取消，请重新生成二维码", "s-err"); $("countdown").textContent = ""; }
+    }
+
+    async function confirm() {
+      $("countdown").textContent = "";
+      setStatus("授权成功，正在入库…", "s-authorized");
+      try {
+        const acc = await api("POST", `/qr/${sid}/confirm`);
+        setStatus("✓ 添加成功", "s-ok");
+        const name = acc.nickname || acc.alias || acc.openid;
+        $("accBox").style.display = "block";
+        $("accBox").innerHTML = `<div>账号：<b>${name}</b></div><div>openid：${acc.openid}</div><div>状态：${acc.status}</div>`;
+        $("qrWrap").innerHTML = '<span class="qr-success">✓</span>';
+      } catch (e) { setStatus("入库失败: " + JSON.stringify(e.data ?? e), "s-err"); }
+    }
+
+    $("refreshBtn").addEventListener("click", newQr);
+    $("proxyEnabled").addEventListener("change", () => {
+      $("proxyOptions").classList.toggle("hidden", !$("proxyEnabled").checked);
+    });
+    $("proxyProvince").addEventListener("change", syncCities);
+    $("backBtn").addEventListener("click", () => { stopTimers(); location.href = "/"; });
+    loadRegions().finally(newQr);
+  </script>
+</body>
+</html>
